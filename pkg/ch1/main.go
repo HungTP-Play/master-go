@@ -1,13 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/gif"
 	"io"
+	"log"
 	"math"
 	"math/rand"
-	"os"
+	"net/http"
+	"strconv"
+	"sync"
 )
 
 var palette = []color.Color{color.White, color.Black}
@@ -17,16 +21,12 @@ const (
 	blackIndex = 1 // next color in palette
 )
 
-func lissajous(out io.Writer) {
+func lissajous(out io.Writer, cycles float64) {
 	const (
-		cycles  = 5     // number of complete x oscillator revolutions
 		res     = 0.001 // angular resolution
-		size    = 100
-		nframes = 64
-		delay   = 8
-	// image canvas covers [-size..+size]
-	// number of animation frames
-	// delay between frames in 10ms units
+		size    = 100   // image canvas covers [-size..+size]
+		nframes = 64    // number of animation frames
+		delay   = 8     // delay between frames in 10ms units
 	)
 	freq := rand.Float64() * 3.0 // relative frequency of y oscillator
 	anim := gif.GIF{LoopCount: nframes}
@@ -62,8 +62,29 @@ func lissajous(out io.Writer) {
 // 	fmt.Println(s)
 // }
 
+var mu sync.Mutex
+var count int
+
 func main() {
-	// Hello()
-	// Echo()
-	lissajous(os.Stdout)
+	http.HandleFunc("/", handler)
+	http.HandleFunc("/count", counter)
+	log.Fatal(http.ListenAndServe("localhost:8000", nil))
+}
+
+// handler echoes the HTTP request.
+func handler(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	cycelsStr := query.Get("cycels")
+	cycels, err := strconv.ParseFloat(cycelsStr, 64)
+	if err != nil {
+		fmt.Fprintln(w, "Error cycels")
+	}
+	lissajous(w, cycels)
+}
+
+// counter echoes the number of calls so far.
+func counter(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	fmt.Fprintf(w, "Count %d\n", count)
+	mu.Unlock()
 }
